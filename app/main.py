@@ -2,8 +2,8 @@ from fastapi import FastAPI
 
 from app.config import settings
 from app.database import Base, engine
-from app.models import note  # noqa: F401 - registers the model with Base
-from app.routers import contacts, library, notes, recipes
+from app.models import note, student  # imported so create_all sees both tables
+from app.routers import contacts, library, notes, recipes, students
 
 Base.metadata.create_all(bind=engine)
 
@@ -17,6 +17,7 @@ app.include_router(recipes.router)
 app.include_router(contacts.router)
 app.include_router(library.router)
 app.include_router(notes.router)
+app.include_router(students.router)
 
 
 @app.get("/")
