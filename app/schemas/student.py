@@ -35,3 +35,17 @@ class StudentResponse(BaseModel):
     gpa: Optional[float]
 
     model_config = {"from_attributes": True}
+
+
+StudentResponse.model_config = {
+    "from_attributes": True,
+    "json_schema_extra": {
+        "example": {
+            "id": 1,
+            "name": "Ada Lovelace",
+            "email": "ada@example.com",
+            "major": "Mathematics",
+            "gpa": 3.9,
+        }
+    },
+}

@@ -20,3 +20,18 @@ class BookResponse(BaseModel):
     rating: float
     year: int
     available: bool
+
+BookResponse.model_config = {
+    "from_attributes": True,
+    "json_schema_extra": {
+        "example": {
+            "id": 1,
+            "title": "Dune",
+            "author": "Frank Herbert",
+            "genre": "Science Fiction",
+            "rating": 4.6,
+            "year": 1965,
+            "available": True,
+        }
+    },
+}

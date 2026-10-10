@@ -7,71 +7,21 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.database import Base, engine
-from app.models import item, note, student  # noqa: F401 - registers tables with Base
+from app.models import item, note, student  # noqa: F401 - register tables with Base
 from app.routers import contacts, items, library, notes, recipes, reports, students
 
 Base.metadata.create_all(bind=engine)
 
-tags_metadata = [
-    {
-        "name": "contacts",
-        "description": "A validated contact book. Supports category filtering and partial updates.",
-    },
-    {
-        "name": "library",
-        "description": "Book search with path and query parameters. Filter by genre and rating, sort by any field.",
-    },
-    {
-        "name": "notes",
-        "description": "Database-backed notes. **Data persists across restarts.** Filter by category and pinned status.",
-    },
-    {
-        "name": "students",
-        "description": "Full CRUD with SQLAlchemy. PUT replaces, PATCH merges. Duplicate emails return 409.",
-    },
-    {
-        "name": "recipes",
-        "description": "In-memory recipe store. Data resets when the server restarts.",
-    },
-    {
-        "name": "reports",
-        "description": "Background task demos. POSTs return `202 Accepted` immediately; poll for status.",
-    },
-    {
-        "name": "items",
-        "description": "Items with input sanitization. HTML tags are stripped at the boundary.",
-    },
-]
-
 app = FastAPI(
-    title="FastAPI Exercise Collection",
-    description="""
-A single API collecting the exercises from this module - routers, validation,
-databases, background tasks, and security hardening.
-
-## Storage
-- **Persistent** (SQLite): `notes`, `students`, `items`
-- **In-memory**: `recipes`, `contacts`, `library`, `reports`
-
-In-memory data resets when the server restarts. That is expected, not a bug.
-
-## Rate limiting
-All endpoints are limited to **10 requests per minute per IP**. Exceeding it
-returns `429 Too Many Requests` with a `Retry-After` header. The responses also
-carry `X-RateLimit-Limit` and `X-RateLimit-Remaining`.
-
-## Error format
-Domain errors return a consistent body:
-
-    {"error": "...", "message": "...", "status_code": ...}
-
-Framework validation errors return FastAPI's standard `{"detail": [...]}` shape.
-""",
-    version="1.0.0",
-    openapi_tags=tags_metadata,
+    title=settings.app_name,
+    description="A properly structured FastAPI application",
+    version="0.1.0",
 )
 
-# --- CORS: explicit origins, never "*" ---
+# --- CORS -------------------------------------------------------------------
+# Explicit origins, never "*". With allow_credentials=True a wildcard is
+# rejected by browsers anyway, and being specific means only these front ends
+# may read responses in a user's browser.
 ALLOWED_ORIGINS = [
     "[localhost](http://localhost:3000)",
     "[127.0.0.1](http://127.0.0.1:3000)",
@@ -83,11 +33,15 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
+    # Only the verbs this API actually exposes - not "*".
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
-# --- Rate limiting: sliding window per IP ---
+# --- Rate limiting ----------------------------------------------------------
+# Simple in-memory sliding window: IP -> timestamps of recent requests.
+# Note this is per-process; behind multiple workers each would keep its own
+# count, so a real deployment needs Redis or similar shared storage.
 RATE_LIMIT_REQUESTS = 10
 RATE_LIMIT_WINDOW_SECONDS = 60
 request_log: dict[str, deque] = defaultdict(deque)
@@ -100,6 +54,7 @@ async def rate_limit_middleware(request: Request, call_next):
     window_start = now - RATE_LIMIT_WINDOW_SECONDS
 
     timestamps = request_log[client_ip]
+    # Drop anything older than the window.
     while timestamps and timestamps[0] < window_start:
         timestamps.popleft()
 
@@ -122,6 +77,7 @@ async def rate_limit_middleware(request: Request, call_next):
     return response
 
 
+# --- Routers ----------------------------------------------------------------
 app.include_router(recipes.router)
 app.include_router(contacts.router)
 app.include_router(library.router)
@@ -131,7 +87,6 @@ app.include_router(reports.router)
 app.include_router(items.router)
 
 
-@app.get("/", summary="API root", tags=["recipes"])
+@app.get("/")
 def root():
-    """Health check and a pointer to the interactive documentation."""
     return {"app": settings.app_name, "docs": "/docs"}

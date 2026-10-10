@@ -11,16 +11,16 @@ book_catalog: list[dict] = [
      "rating": 4.6, "year": 1965, "available": True},
     {"id": 2, "title": "Neuromancer", "author": "William Gibson", "genre": "Science Fiction",
      "rating": 4.1, "year": 1984, "available": False},
-    {"id": 3, "title": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "genre": "Science Fiction",
-     "rating": 4.4, "year": 1969, "available": True},
+    {"id": 3, "title": "The Left Hand of Darkness", "author": "Ursula K. Le Guin",
+     "genre": "Science Fiction", "rating": 4.4, "year": 1969, "available": True},
     {"id": 4, "title": "Pride and Prejudice", "author": "Jane Austen", "genre": "Classic",
      "rating": 4.5, "year": 1813, "available": True},
     {"id": 5, "title": "Emma", "author": "Jane Austen", "genre": "Classic",
      "rating": 4.2, "year": 1815, "available": False},
     {"id": 6, "title": "The Hobbit", "author": "J.R.R. Tolkien", "genre": "Fantasy",
      "rating": 4.8, "year": 1937, "available": True},
-    {"id": 7, "title": "The Fellowship of the Ring", "author": "J.R.R. Tolkien", "genre": "Fantasy",
-     "rating": 4.9, "year": 1954, "available": True},
+    {"id": 7, "title": "The Fellowship of the Ring", "author": "J.R.R. Tolkien",
+     "genre": "Fantasy", "rating": 4.9, "year": 1954, "available": True},
     {"id": 8, "title": "Mistborn", "author": "Brandon Sanderson", "genre": "Fantasy",
      "rating": 4.5, "year": 2006, "available": False},
     {"id": 9, "title": "The Name of the Wind", "author": "Patrick Rothfuss", "genre": "Fantasy",
@@ -47,14 +47,18 @@ authors_db: dict[int, dict] = {
 }
 
 
-@router.get("/authors/{author_id}/books", response_model=list[BookResponse],
-            summary="List books by an author")
+@router.get(
+    "/authors/{author_id}/books",
+    response_model=list[BookResponse],
+    summary="List books by an author",
+    responses={404: {"description": "Author not found, or has no books in the catalog"}},
+)
 def list_books_by_author(author_id: int = Path(ge=1, description="Author directory id")):
+    """Nested resource - a given author's books, addressed under the author."""
     author = authors_db.get(author_id)
     if author is None:
         raise HTTPException(status_code=404,
                             detail=f"Author {author_id} not found in the directory")
-
     name = author["name"].casefold()
     matches = [b for b in book_catalog if b["author"].casefold() == name]
     if not matches:
@@ -63,32 +67,42 @@ def list_books_by_author(author_id: int = Path(ge=1, description="Author directo
     return matches
 
 
-@router.get("/", response_model=list[BookResponse], summary="Search and filter books")
+@router.get(
+    "",
+    response_model=list[BookResponse],
+    summary="Search and filter books",
+    responses={422: {"description": "Validation error - bad sort field or out-of-range value"}},
+)
 def search_books(
-    genre: Optional[str] = Query(default=None, min_length=1, description="Case-insensitive genre match"),
-    min_rating: float = Query(default=0.0, ge=0.0, le=5.0, description="Minimum rating, 0.0-5.0"),
+    genre: Optional[str] = Query(default=None, min_length=1,
+                                  description="Case-insensitive genre match"),
+    min_rating: float = Query(default=0.0, ge=0.0, le=5.0,
+                              description="Minimum rating, 0.0-5.0"),
     sort_by: Optional[SortField] = Query(default=None, description="Field to sort by"),
     limit: int = Query(default=10, ge=1, le=100, description="Max results, 1-100"),
 ):
+    """Filter the catalog by genre and rating, then sort and cap the results."""
     results = book_catalog
-
     if genre is not None:
         wanted = genre.casefold()
         results = [b for b in results if b["genre"].casefold() == wanted]
-
     results = [b for b in results if b["rating"] >= min_rating]
-
     if sort_by is not None:
         if sort_by in (SortField.rating, SortField.year):
             results = sorted(results, key=lambda b: b[sort_by.value], reverse=True)
         else:
             results = sorted(results, key=lambda b: str(b[sort_by.value]).casefold())
-
     return results[:limit]
 
 
-@router.get("/{book_id}", response_model=BookResponse, summary="Get one book")
+@router.get(
+    "/{book_id}",
+    response_model=BookResponse,
+    summary="Get one book",
+    responses={404: {"description": "No book with that id"}},
+)
 def get_library_book(book_id: int = Path(ge=1, description="Integer book id")):
+    """Return a single book by id, or 404 if it is not in the catalog."""
     for book in book_catalog:
         if book["id"] == book_id:
             return book

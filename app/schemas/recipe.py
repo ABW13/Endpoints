@@ -18,3 +18,16 @@ class RecipeResponse(BaseModel):
     cuisine: str
     servings: int
     ingredients: list[str]
+
+RecipeResponse.model_config = {
+    "from_attributes": True,
+    "json_schema_extra": {
+        "example": {
+            "id": 1,
+            "title": "Pad Thai",
+            "cuisine": "Thai",
+            "servings": 4,
+            "ingredients": ["rice noodles", "tamarind", "peanuts"],
+        }
+    },
+}

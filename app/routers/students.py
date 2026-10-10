@@ -12,8 +12,18 @@ from app.schemas.student import StudentCreate, StudentPatch, StudentResponse, St
 router = APIRouter(prefix="/students", tags=["students"])
 
 
-@router.post("/", response_model=StudentResponse, status_code=201, summary="Create a student")
+@router.post(
+    "/",
+    response_model=StudentResponse,
+    status_code=201,
+    summary="Create a student",
+    responses={
+        409: {"description": "A student with that email already exists"},
+        422: {"description": "Validation error - bad email format or GPA out of range"},
+    },
+)
 def create_student(student: StudentCreate, db: Session = Depends(get_db)):
+    """Create a student record with a unique email and a GPA between 0.0 and 4.0."""
     db_student = Student(**student.model_dump())
     db.add(db_student)
     try:
@@ -31,6 +41,7 @@ def list_students(
     min_gpa: Optional[float] = Query(default=None, ge=0.0, le=4.0, description="Minimum GPA"),
     db: Session = Depends(get_db),
 ):
+    """Return all students, optionally filtered by major and minimum GPA."""
     query = db.query(Student)
     if major is not None:
         query = query.filter(Student.major == major)
@@ -39,8 +50,14 @@ def list_students(
     return query.order_by(Student.id).all()
 
 
-@router.get("/{student_id}", response_model=StudentResponse, summary="Get one student")
+@router.get(
+    "/{student_id}",
+    response_model=StudentResponse,
+    summary="Get one student",
+    responses={404: {"description": "No student with that id"}},
+)
 def get_student(student_id: int, db: Session = Depends(get_db)):
+    """Return a single student by id, or 404 if none exists."""
     student = db.get(Student, student_id)
     if student is None:
         raise NotFoundError(f"Student {student_id} not found")
@@ -49,6 +66,7 @@ def get_student(student_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{student_id}", response_model=StudentResponse, summary="Replace a student")
 def replace_student(student_id: int, payload: StudentUpdate, db: Session = Depends(get_db)):
+    """Full replacement - every field is overwritten from the request body."""
     student = db.get(Student, student_id)
     if student is None:
         raise NotFoundError(f"Student {student_id} not found")
@@ -65,8 +83,18 @@ def replace_student(student_id: int, payload: StudentUpdate, db: Session = Depen
     return student
 
 
-@router.patch("/{student_id}", response_model=StudentResponse, summary="Update a student")
+@router.patch(
+    "/{student_id}",
+    response_model=StudentResponse,
+    summary="Update a student",
+    responses={
+        404: {"description": "No student with that id"},
+        409: {"description": "That email is already in use by another student"},
+        422: {"description": "Validation error, or an empty request body"},
+    },
+)
 def patch_student(student_id: int, payload: StudentPatch, db: Session = Depends(get_db)):
+    """Partially update a student - only the fields you send are changed."""
     student = db.get(Student, student_id)
     if student is None:
         raise NotFoundError(f"Student {student_id} not found")
@@ -89,6 +117,7 @@ def patch_student(student_id: int, payload: StudentPatch, db: Session = Depends(
 
 @router.delete("/{student_id}", summary="Delete a student")
 def delete_student(student_id: int, db: Session = Depends(get_db)):
+    """Delete a student record, or 404 if the id is unknown."""
     student = db.get(Student, student_id)
     if student is None:
         raise NotFoundError(f"Student {student_id} not found")

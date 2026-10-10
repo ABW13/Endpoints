@@ -78,3 +78,19 @@ class ContactResponse(BaseModel):
     phone: Optional[str]
     category: Category
     created_at: str
+
+# --- documentation example for the response model ---
+ContactResponse.model_config = {
+    "from_attributes": True,
+    "json_schema_extra": {
+        "example": {
+            "id": 1,
+            "first_name": "Ada",
+            "last_name": "Lovelace",
+            "email": "ada@example.com",
+            "phone": "5551234567",
+            "category": "work",
+            "created_at": "2026-10-10T14:20:00+00:00",
+        }
+    },
+}
